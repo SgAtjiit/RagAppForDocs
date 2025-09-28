@@ -1,4 +1,4 @@
 from sentence_transformers import SentenceTransformer
 
 print("Loading embedding model...")
-embedder = SentenceTransformer("all-MiniLM-L3-v2")
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
