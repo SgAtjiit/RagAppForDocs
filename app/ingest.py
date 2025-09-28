@@ -4,12 +4,13 @@ from qdrant_client.models import VectorParams
 from pypdf import PdfReader
 from .config import QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION
 from .models import embedder   # ✅ import shared embedder
-
+from qdrant_client.models import Filter
 def get_qdrant_client():
     """Initialize Qdrant client lazily."""
     return QdrantClient(
         url=QDRANT_URL,
-        api_key=QDRANT_API_KEY
+        api_key=QDRANT_API_KEY,
+        timeout=60
     )
 
 def create_collection(qdrant):
@@ -40,12 +41,42 @@ def pdf_to_chunks(pdf_path, chunk_size=500, overlap=50):
 
     return chunks
 
+# def ingest_pdf(pdf_path: str):
+#     print("Starting the process.......")
+#     qdrant = get_qdrant_client()
+#     create_collection(qdrant)
+#     chunks = pdf_to_chunks(pdf_path)
+#     embeddings = embedder.encode(chunks).tolist()   # ✅ using shared embedder
+
+#     points = []
+#     for chunk, vector in zip(chunks, embeddings):
+#         points.append({
+#             "id": str(uuid.uuid4()),
+#             "vector": vector,
+#             "payload": {"text": chunk},
+#         })
+
+#     qdrant.upsert(
+#         collection_name=QDRANT_COLLECTION,
+#         points=points,
+#     )
+#     print(f"✅ Ingested {len(chunks)} chunks into Qdrant.")
+
+
 def ingest_pdf(pdf_path: str):
-    print("Starting the process.......")
     qdrant = get_qdrant_client()
     create_collection(qdrant)
+
+    # ✅ Delete all points safely
+    qdrant.delete(
+        collection_name=QDRANT_COLLECTION,
+        points_selector=Filter(must=[]) # ✅ Correct way to select all points
+    )
+
     chunks = pdf_to_chunks(pdf_path)
-    embeddings = embedder.encode(chunks).tolist()   # ✅ using shared embedder
+    if not chunks:
+        raise ValueError("No text could be extracted from PDF. Make sure the PDF contains selectable text.")
+    embeddings = embedder.encode(chunks).tolist()
 
     points = []
     for chunk, vector in zip(chunks, embeddings):
@@ -60,3 +91,6 @@ def ingest_pdf(pdf_path: str):
         points=points,
     )
     print(f"✅ Ingested {len(chunks)} chunks into Qdrant.")
+
+    
+    

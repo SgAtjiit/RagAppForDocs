@@ -6,7 +6,8 @@ from .models import embedder   # ✅ import shared embedder
 def get_qdrant_client():
     return QdrantClient(
         url=QDRANT_URL,
-        api_key=QDRANT_API_KEY
+        api_key=QDRANT_API_KEY,
+        timeout=60
     )
 
 def get_gemini_model():
