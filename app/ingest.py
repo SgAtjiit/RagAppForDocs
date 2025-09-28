@@ -1,16 +1,12 @@
 import uuid
 from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams
-from sentence_transformers import SentenceTransformer 
 from pypdf import PdfReader
 from .config import QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION
-
-# load embedding model once
-print("Loading embedding Model")
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
+from .models import embedder   # ✅ import shared embedder
 
 def get_qdrant_client():
-    """Initialize Qdrant client lazily (when called, not on import)."""
+    """Initialize Qdrant client lazily."""
     return QdrantClient(
         url=QDRANT_URL,
         api_key=QDRANT_API_KEY
@@ -49,7 +45,7 @@ def ingest_pdf(pdf_path: str):
     qdrant = get_qdrant_client()
     create_collection(qdrant)
     chunks = pdf_to_chunks(pdf_path)
-    embeddings = embedder.encode(chunks).tolist()
+    embeddings = embedder.encode(chunks).tolist()   # ✅ using shared embedder
 
     points = []
     for chunk, vector in zip(chunks, embeddings):

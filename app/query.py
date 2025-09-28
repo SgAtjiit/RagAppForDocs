@@ -1,10 +1,7 @@
 from qdrant_client import QdrantClient
-from sentence_transformers import SentenceTransformer
 import google.generativeai as genai 
 from .config import GEMINI_API_KEY, QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION 
-
-print("Loading embedder.....")
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
+from .models import embedder   # ✅ import shared embedder
 
 def get_qdrant_client():
     return QdrantClient(
@@ -19,7 +16,7 @@ def get_gemini_model():
 def retrieve_context(question: str, top_k: int = 3):
     print("Retrieving context......")
     qdrant = get_qdrant_client()
-    q_embedding = embedder.encode(question).tolist()
+    q_embedding = embedder.encode(question).tolist()   # ✅ using shared embedder
 
     search_results = qdrant.query_points(
         collection_name=QDRANT_COLLECTION,
