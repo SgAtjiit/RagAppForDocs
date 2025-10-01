@@ -34,7 +34,7 @@ def retrieve_context(question: str, top_k: int = 3):
 def ask_gemini(question: str):
     context = retrieve_context(question)
     prompt = f"""
-You are an assistant answering based on the following document context.
+You are an assistant answering strictly based on the following document context.
 
 Context:
 {context}
@@ -42,8 +42,15 @@ Context:
 Question:
 {question}
 
-Answer clearly and only using the provided context. 
-If not in provided context just say this is out of the context
+Instructions:
+- If the answer can be fully found in the context, reply clearly using only the context.
+- If the question is long, break it into parts and answer whatever is relevant from the context.
+- If nothing is found in the context, reply only: "This is out of the context".
+- If you find something partially related:
+   1. First, answer what is present in the context.
+   2. Then, if you know additional information from outside the context, share it but always clarify:
+      "⚠️ This was not in the provided context, but I know it. Please verify."
+
 """
     model = get_gemini_model()
     response = model.generate_content(prompt)
