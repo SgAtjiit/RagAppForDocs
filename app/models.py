@@ -11,5 +11,5 @@ def get_embedder():
     global _embedder
     if _embedder is None:
         print("Loading embedding model...")
-        _embedder = SentenceTransformer("paraphrase-MiniLM-L3-v2")  # ✅ smaller & fast
+        _embedder = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
     return _embedder

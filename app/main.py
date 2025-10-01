@@ -23,23 +23,48 @@ async def ingest_endpoint(file: UploadFile = File(...)):
             f.write(await file.read())
 
         ingest_pdf(file_path)
-        return {"message": f"{file.filename} ingested successfully"}
+        return {
+            "status": "success",
+            "message": f"✅ {file.filename} ingested successfully",
+            "data": {
+                "filename": file.filename,
+                "path": file_path
+            }
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"status": "error", "message": f"Ingestion failed: {str(e)}"}
+        )
 
 @app.post("/ask")
 async def ask_endpoint(request: QuestionRequest):
     """Ask a question based on ingested PDFs"""
     try:
         answer = ask_gemini(request.question)
-        return {"question": request.question, "answer": answer}
+        return {
+            "status": "success",
+            "question": request.question,
+            "answer": answer,
+            "source": ["📄 extracted chunks from PDFs"]  # optional: add page info later
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"status": "error", "message": f"Query failed: {str(e)}"}
+        )
 
 @app.get("/")
 async def root():
     """Health check endpoint"""
-    return {"message": "PDF RAG App is running!"}
+    return {
+        "status": "ok",
+        "message": "🚀 PDF RAG App is running!",
+        "endpoints": {
+            "upload_pdf": "/ingest",
+            "ask_question": "/ask"
+        }
+    }
 
 # ✅ Auto-run when deployed on Render
 if __name__ == "__main__":

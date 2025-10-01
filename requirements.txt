@@ -1,8 +1,11 @@
 fastapi
 uvicorn
-qdrant-client
+chromadb
 pypdf
 python-dotenv
 google-generativeai
 sentence-transformers
 python-multipart
+pytesseract 
+pdf2image 
+pillow
