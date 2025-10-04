@@ -17,41 +17,67 @@ def get_gemini_model():
     genai.configure(api_key=GEMINI_API_KEY)
     return genai.GenerativeModel("gemini-2.5-flash")
 
-def retrieve_context(question: str, top_k: int = 3):
+def retrieve_context(question: str, top_k: int = 5):  # ✅ Increased to get more sources
     collection = get_chroma_collection()
     embedder = get_embedder()
     q_embedding = embedder.encode(question).tolist()
 
     results = collection.query(
         query_embeddings=[q_embedding],
-        n_results=top_k
+        n_results=top_k,
+        include=["documents", "metadatas", "distances"]
     )
+    context_parts  = []
+    sources = []
+# Don't filter by dist, just take top_k
+    for i, (docs, metadata_list, distance) in enumerate(zip(
+        results["documents"], results["metadatas"], results["distances"]
+    )):
+        for doc, metadata, dist in zip(docs, metadata_list, distance):
+            source_info = {
+                "file": metadata["source_file"],
+                "page": metadata["page_number"],
+                "chunk_id": metadata.get("chunk_id", f"chunk_{i}"),
+                "relevance": round((1 - dist) * 100, 1)
+            }
+            context_parts.append(f"[Source: {source_info['file']}, Page {source_info['page']}]\n{doc}")
+            sources.append(source_info)
 
-    # results["documents"] is a list of list
-    context = "\n".join([doc for docs in results["documents"] for doc in docs])
-    return context
+        
+    context = "\n\n".join(context_parts)
+    return context, sources
 
 def ask_gemini(question: str):
-    context = retrieve_context(question)
+    context, sources = retrieve_context(question)
+    
+    # ✅ Enhanced prompt with source instruction
     prompt = f"""
-You are an assistant answering strictly based on the following document context.
+You are an assistant answering based on document context with SOURCE CITATION.
 
-Context:
+Context (with sources):
 {context}
 
-Question:
-{question}
+Question: {question}
 
 Instructions:
-- If the answer can be fully found in the context, reply clearly using only the context.
-- If the question is long, break it into parts and answer whatever is relevant from the context.
-- If nothing is found in the context, reply only: "This is out of the context".
-- If you find something partially related:
-   1. First, answer what is present in the context.
-   2. Then, if you know additional information from outside the context, share it but always clarify:
-      "⚠️ This was not in the provided context, but I know it. Please verify."
+- Answer using the provided context
+- ALWAYS cite your sources like: "According to [filename, page X]..."
+- If multiple sources support the answer, mention all relevant sources
+- If you can't find the answer in context, say "This information is not available in the provided documents"
+- Be specific about which page contains which information
 
+Answer format:
+[Your answer here]
+
+Sources: [List the specific pages you referenced]
 """
+
     model = get_gemini_model()
     response = model.generate_content(prompt)
-    return response.text
+    
+    # ✅ Return both answer and source metadata
+    return {
+        "answer": response.text,
+        "sources": sources,
+        "total_chunks_used": len(sources)
+    }

@@ -4,6 +4,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from .ingest import ingest_pdf
 from .query import ask_gemini
+from typing import List
 
 # ensure env loads
 load_dotenv()
@@ -24,21 +25,34 @@ class QuestionRequest(BaseModel):
     question: str
 
 @app.post("/ingest")
-async def ingest_endpoint(file: UploadFile = File(...)):
+async def ingest_endpoint(files: List[UploadFile] = File(...)):
     """Upload a PDF and ingest it into Qdrant"""
     try:
         os.makedirs("data", exist_ok=True)
-        file_path = f"data/{file.filename}"
-        with open(file_path, "wb") as f:
-            f.write(await file.read())
+        file_paths = []
+        uploaded_files = []
+        for file in files:
+            if not file.filename.endswith('.pdf'):
+                raise HTTPException(
+                    status_code=400,
+                    detail={"status": "error", "message": f"File {file.filename} is not a PDF"}
+                )
+                
+            file_path = f"data/{file.filename}"
+            with open(file_path, "wb") as f:
+                f.write(await file.read())
+            
+            file_paths.append(file_path)
+            uploaded_files.append(file.filename)
 
-        ingest_pdf(file_path)
+        ingest_pdf(file_paths)
         return {
             "status": "success",
-            "message": f"✅ {file.filename} ingested successfully",
+            "message": f"✅ {len(uploaded_files)} PDF(s) ingested successfully",
             "data": {
-                "filename": file.filename,
-                "path": file_path
+                "filenames": uploaded_files,
+                "paths": file_paths,
+                "count": len(uploaded_files)
             }
         }
     except Exception as e:
@@ -47,22 +61,51 @@ async def ingest_endpoint(file: UploadFile = File(...)):
             detail={"status": "error", "message": f"Ingestion failed: {str(e)}"}
         )
 
+# @app.post("/ask")
+# async def ask_endpoint(request: QuestionRequest):
+#     """Ask a question based on ingested PDFs"""
+#     try:
+#         answer = ask_gemini(request.question)
+#         return {
+#             "status": "success",
+#             "question": request.question,
+#             "answer": answer,
+#             "source": ["📄 extracted chunks from PDFs"]  # optional: add page info later
+#         }
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=500,
+#             detail={"status": "error", "message": f"Query failed: {str(e)}"}
+#         )
+
 @app.post("/ask")
 async def ask_endpoint(request: QuestionRequest):
-    """Ask a question based on ingested PDFs"""
+    """Ask a question based on ingested PDFs with source attribution"""
     try:
-        answer = ask_gemini(request.question)
+        result = ask_gemini(request.question)
+        
+        # ✅ Enhanced response with detailed source info
         return {
             "status": "success",
             "question": request.question,
-            "answer": answer,
-            "source": ["📄 extracted chunks from PDFs"]  # optional: add page info later
+            "answer": result["answer"],
+            "sources": {
+                "total_chunks_used": result["total_chunks_used"],
+                "source_details": result["sources"],
+                "files_referenced": list(set([s["file"] for s in result["sources"]])),
+                "pages_referenced": [f"{s['file']} (Page {s['page']})" for s in result["sources"]]
+            },
+            "metadata": {
+                "retrieval_method": "semantic_search",
+                "chunks_analyzed": result["total_chunks_used"]
+            }
         }
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail={"status": "error", "message": f"Query failed: {str(e)}"}
         )
+
 
 @app.get("/")
 async def root():
